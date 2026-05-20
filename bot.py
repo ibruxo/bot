@@ -40,7 +40,7 @@ class BaleBot:
             logger.error(f"Error in receiving the update: {e}")
             return []
     
-    def send_message(self, chat_id: int, text: str, reply_markup: dict = None):
+    def send_message(self, chat_id: int, text: str, reply_markup: dict = None, parse_mode: str = None):
         payload = {
             "chat_id": chat_id,
             "text": text
@@ -49,12 +49,15 @@ class BaleBot:
         if reply_markup:
             payload["reply_markup"] = reply_markup
         
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
+
         return self._request("sendMessage", json=payload)
     
     def send_verse(self, chat_id: int, cache: CacheManager):
         verse = cache.get_random_verse()
         message = cache.format_verse(verse)
-        return self.send_message(chat_id, message)
+        return self.send_message(chat_id, message, parse_mode="Markdown")
     
     def send_keyboard(self, chat_id: int, text: str):
         reply_markup = {

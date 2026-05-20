@@ -79,6 +79,6 @@ class CacheManager:
     def format_verse(self, data: Dict[str, Any]) -> str:
         return (
             f"سوره {data['surah_name']}، آیه {data['verse_number']}\n\n"
-            f"{data['verse_text']}\n\n"
+            f"*{data['verse_text']}*\n\n"
             f"{data['translation']}"
         )
