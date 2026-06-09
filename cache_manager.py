@@ -98,7 +98,7 @@ class CacheManager:
         message = (
             f"{period_icon} *سوره {surah_name}*\n\n"
             f"📖 *{verse_text} ﴿{verse_number}﴾*\n\n"
-            f"✏️ {translation} ({verse_number})\n\n"
+            f"📝 {translation} ({verse_number})\n\n"
             f"{channel_footer}"
         )
         
