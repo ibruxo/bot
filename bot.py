@@ -127,8 +127,11 @@ class BaleBot:
         text = (
             "⏰ *زمان ارسال خودکار*\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            f"هر روز ساعت {Config.SCHEDULE_HOUR:02d}:{Config.SCHEDULE_MINUTE:02d}\n"
-            f"به وقت {Config.SCHEDULE_TIMEZONE}\n\n"
+            f"📢 کانال‌ها و گروه‌ها: ساعت "
+            f"{Config.SCHEDULE_PUBLIC_HOUR:02d}:{Config.SCHEDULE_PUBLIC_MINUTE:02d}\n"
+            f"👤 کاربران: ساعت "
+            f"{Config.SCHEDULE_USER_HOUR:02d}:{Config.SCHEDULE_USER_MINUTE:02d}\n"
+            f"🕒 به وقت {Config.SCHEDULE_TIMEZONE}\n\n"
             f"📢 کانال‌ها: {len(Config.get_channel_ids())}\n"
             f"👥 گروه‌ها: {len(Config.get_group_ids())}\n"
             f"👤 کاربران: {len(Config.get_user_ids())}"
