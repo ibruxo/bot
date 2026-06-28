@@ -64,5 +64,5 @@ class Config:
     def get_bale_full_api_url(cls) -> str:
         return f"{cls.BALE_API_URL}/bot{cls.BALE_BOT_TOKEN}"
 
-    # Channel ID for reference at the end of the message
-    CHANNEL_ID: str = os.getenv("CHANNEL_ID", "")
+    # BOT ID for reference at the end of the message
+    BOT_ID: str = os.getenv("BOT_ID", "")
