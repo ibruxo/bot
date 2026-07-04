@@ -3,7 +3,7 @@ from sqlalchemy import JSON
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 
-from app.db.base import Base
+from db.base import Base
 
 
 class BotState(Base):
