@@ -1,293 +1,153 @@
 # 📖 Natiq Quran Bot
 
-A Multi Messenger bot that delivers random verses from the Holy Quran together with Persian translations.
-
-The bot supports:
-
-*  On-demand random Quran verses
-*  Scheduled daily verse delivery
-*  Direct messages to users
-*  Groups
-*  Channels
-*  PostgreSQL persistence
-*  Redis caching and temporary state
-*  SQLAlchemy ORM
-*  Alembic database migrations
+A Bale bot that delivers Quran verses (Arabic + Persian translation) to
+users, groups, and channels — on demand and on a daily schedule.
 
 ---
 
-# Features
+## ⚠️ One thing to verify before running
 
-* Random verse generation
-* Persian translation support
-* Daily scheduled messages
-* Automatic message formatting
-* Channel and group broadcasting
-* User management
-* Verse caching
-* Database persistence
-* Rate limiting
-* Conversation state management
-* Docker support
+The verse ingestion client (`services/quran_api_client.py`) is built
+against the **documented endpoint names** of the Natiq Quran API
+(`/surahs/`, `/ayahs/`, `/ayah-translations/`), but I could not confirm
+the exact **response field names** — `api.natiq.ir`'s Swagger UI blocks
+automated fetching.
 
----
+The client already tries several likely field-name variants for each
+value it reads. If ingestion logs `"Skipped N ayah(s) missing required
+fields"` or comes back empty:
 
-# Project Structure
-
-```text
-.
-├── app/
-│
-├── bot.py
-├── scheduler.py
-├── cache_manager.py
-├── config.py
-│
-├── db/
-│   ├── base.py
-│   ├── session.py
-│   ├── models/
-│   ├── repositories/
-│   └── migrations/
-│
-├── redis/
-│
-├── Dockerfile
-├── docker-compose.yml
-├── requirements.txt
-└── README.md
-```
+1. Open `https://api.natiq.ir/api/schema/swagger-ui/` in your browser
+2. Try `GET /ayahs/` and `GET /ayah-translations/`, look at one real item
+3. Update the candidate key names in the `_pick(...)` calls in
+   `services/quran_api_client.py` — that's the only file this affects
 
 ---
 
-# Architecture
+## Architecture
 
 ```
-               Quran API
-                    │
-                    ▼
-            Cache Manager
-                    │
-        ┌───────────┴───────────┐
-        ▼                       ▼
- PostgreSQL                 Redis
-(Source of Truth)      (Cache + State)
-        │                       │
-        └───────────┬───────────┘
+   Natiq Quran API
+         │
+         ▼
+ VerseIngestionService
+         │
+         ▼
+    PostgreSQL  ──────►  Redis
+ (source of truth)     (cache + rate limiting)
+         │                    │
+         └─────────┬──────────┘
                     ▼
                 Bale Bot
                     │
-        ┌───────────┴───────────┐
+        ┌───────────┼───────────┐
         ▼           ▼           ▼
       Users      Groups     Channels
 ```
 
----
+- **Postgres** is the source of truth for users, groups, channels, verses,
+  admins, and delivery history (`sent_messages`).
+- **Redis** is only a cache: a fast random-access copy of verses, plus
+  rate-limit counters. It's never the only place data lives.
+- Every incoming message registers its chat (user/group/channel) in
+  Postgres, so scheduled broadcasts grow with real bot usage instead of
+  relying only on a static env var list.
 
-# Database
+## Project structure
 
-The project uses PostgreSQL as the primary database.
+```
+.
+├── bot.py                        # Bale polling loop + command handlers
+├── scheduler.py                  # Daily broadcasts + periodic verse refresh
+├── config.py
+│
+├── db/
+│   ├── base.py                   # SQLAlchemy declarative base
+│   ├── session.py                # Engine + get_session() context manager
+│   ├── models/                   # User, Channel, Group, Verse, SentMessage, BotState
+│   └── repositories/             # CRUD access per model
+│
+├── cache/                        # Redis (named `cache`, not `redis` —
+│   ├── client.py                 # see note below)
+│   ├── verse_cache.py
+│   └── rate_limiter.py
+│
+├── services/
+│   ├── quran_api_client.py       # Talks to api.natiq.ir
+│   ├── verse_ingestion_service.py# API -> Postgres -> Redis
+│   ├── verse_service.py          # get_random_verse() + format_verse()
+│   ├── user_service.py           # registers chats, admin bootstrap, stats
+│   └── broadcast_service.py      # send-and-log for scheduled jobs
+│
+├── scripts/
+│   └── ingest_verses.py          # `python -m scripts.ingest_verses`
+│
+├── migrations/                   # Alembic
+├── Dockerfile / docker-compose.yml
+└── requirements.txt
+```
 
-## Tables
+> **Why `cache/` and not `redis/`?** The original project had a local
+> `redis/` folder, which shadowed the real `redis` pip package and broke
+> every `import redis` in the project. Keep this folder named `cache`.
 
-| Table         | Purpose                         |
-| ------------- | ------------------------------- |
-| users         | Registered bot users            |
-| chats         | Users, groups and channels      |
-| verses        | Cached Quran verses             |
-| sent_messages | Delivery history                |
-| bot_state     | Scheduler and application state |
-
-Redis is used for:
-
-* Rate limiting
-* Temporary cache
-* Pending requests
-* Scheduler state
-* Session storage
-
----
-
-# Technology Stack
-
-* Python 3.12+
-* PostgreSQL
-* SQLAlchemy 2.x
-* Alembic
-* Redis
-* APScheduler
-* Docker
-* Bale Bot API
-
----
-
-# Installation
-
-Clone the repository:
+## Installation
 
 ```bash
-git clone https://github.com/natiq-foundation/bot.git
+git clone <your-repo-url>
 cd bot
+cp .env.example .env   # fill in BALE_BOT_TOKEN, TRANSLATOR_UUID, etc.
 ```
 
-Create a virtual environment:
-
-```bash
-python -m venv .venv
-```
-
-Activate it:
-
-Linux/macOS
-
-```bash
-source .venv/bin/activate
-```
-
-Windows
-
-```powershell
-.venv\Scripts\activate
-```
-
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
----
-
-# Configuration
-
-Create a `.env` file.
-
-Example:
-
-```env
-BALE_BOT_TOKEN=
-BALE_API_URL=https://tapi.bale.ai
-
-DATABASE_URL=postgresql+psycopg://user:password@postgres:5432/natiq_bot
-
-REDIS_URL=redis://redis:6379/0
-
-QURAN_API_URL=
-
-TRANSLATOR_UUID=
-
-BOT_ID=
-
-CHANNEL_IDS=
-
-GROUP_IDS=
-
-USER_IDS=
-```
-
----
-
-# Running with Docker
-
-Build the project:
+## Running with Docker (recommended)
 
 ```bash
 docker compose build
-```
-
-Start the services:
-
-```bash
 docker compose up -d
 ```
 
-Run database migrations:
+Migrations run automatically on container start (see `entrypoint.sh`).
+Verses are ingested automatically on first startup if Postgres is empty
+(`INGEST_ON_STARTUP=true`).
+
+## Running locally
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
 alembic upgrade head
-```
-
----
-
-# Running Locally
-
-```bash
+python -m scripts.ingest_verses   # first-time verse import
 python bot.py
 ```
 
----
+## Admin commands
 
-# Scheduler
+Set `ADMIN_USER_IDS` in `.env` (comma-separated Bale user ids). On
+startup those users are promoted to admin in Postgres. Admins can run:
 
-The scheduler automatically sends Quran verses every day.
+- `/stats` — user/group/channel counts
 
-Schedule configuration:
+## Configuration reference
 
-```env
-SCHEDULE_PUBLIC_HOUR=12
-SCHEDULE_PUBLIC_MINUTE=0
+See `.env.example` for the full list. Notable ones:
 
-SCHEDULE_USER_HOUR=3
-SCHEDULE_USER_MINUTE=0
+| Variable | Purpose |
+|---|---|
+| `TRANSLATOR_UUID` | Which Persian translation to ingest |
+| `VERSE_REFRESH_INTERVAL_HOURS` | How often verses are re-pulled from the API |
+| `RATE_LIMIT_MAX_REQUESTS` / `RATE_LIMIT_WINDOW_SECONDS` | `/random` rate limiting |
+| `CHANNEL_IDS` / `GROUP_IDS` / `USER_IDS` | One-time seed data imported into Postgres on first startup |
 
-SCHEDULE_TIMEZONE=Asia/Riyadh
-```
-
----
-
-# Database Migrations
-
-Create a migration:
+## Database migrations
 
 ```bash
-alembic revision --autogenerate -m "Initial schema"
-```
-
-Apply migrations:
-
-```bash
+# after changing a model in db/models/
+alembic revision --autogenerate -m "describe the change"
 alembic upgrade head
 ```
 
-Rollback:
+## License
 
-```bash
-alembic downgrade -1
-```
-
----
-
-# Development Roadmap
-
-* [x] Bale Bot API
-* [x] Quran API integration
-* [x] Scheduler
-* [x] Docker support
-* [ ] SQLAlchemy ORM
-* [ ] PostgreSQL persistence
-* [ ] Redis caching
-* [ ] Alembic migrations
-* [ ] Admin commands
-* [ ] Analytics dashboard
-* [ ] Webhook support
-* [ ] Unit tests
-
----
-
-# Contributing
-
-Contributions are welcome.
-
-1. Fork the repository.
-2. Create a feature branch.
-3. Commit your changes.
-4. Open a Pull Request.
-
----
-
-# License
-
-This project is developed by the **Natiq Foundation**.
-
-All rights reserved.
-
+Developed by the **Natiq Foundation**. All rights reserved.

@@ -31,14 +31,13 @@ COPY --from=builder /install /usr/local
 WORKDIR /app
 
 COPY --chown=quranbot:quranbot . .
+RUN chmod +x entrypoint.sh
 
 RUN chown -R quranbot:quranbot /app
 
 USER quranbot
 
-EXPOSE 8080
-
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-CMD ["python", "bot.py"]
+CMD ["./entrypoint.sh"]

@@ -1,124 +1,85 @@
 import logging
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from config import Config
+from db.repositories import channel_repo, group_repo, user_repo
+from db.session import get_session
+from services.broadcast_service import BroadcastService
+from services.verse_ingestion_service import VerseIngestionService
+from services.verse_service import VerseService
 
 logger = logging.getLogger(__name__)
 
 
 class MessageScheduler:
-
-    def __init__(self, bot):
+    def __init__(
+        self,
+        bot,
+        verse_service: VerseService,
+        ingestion_service: VerseIngestionService,
+    ):
         self.bot = bot
-        self.cache = None
+        self.verse_service = verse_service
+        self.ingestion_service = ingestion_service
+        self.broadcast = BroadcastService(bot, verse_service)
 
         self.scheduler = BackgroundScheduler(
             timezone=Config.SCHEDULE_TIMEZONE,
             job_defaults={
                 "coalesce": True,
                 "max_instances": 1,
-                "misfire_grace_time": 60
-            }
+                "misfire_grace_time": 60,
+            },
         )
 
-    def set_cache(self, cache):
-        """
-        Cache is now Redis-backed CacheManager.
-        No SQL or API dependency anymore.
-        """
-        self.cache = cache
-
     # -----------------------------
-    # Send to channels & groups
+    # Jobs
     # -----------------------------
     def _send_to_public(self):
-        if not self.cache:
-            logger.error("Cache not initialized")
-            return
-
-        recipients = Config.get_channel_ids() + Config.get_group_ids()
+        with get_session() as session:
+            recipients = channel_repo.list_active_ids(session) + group_repo.list_active_ids(session)
 
         if not recipients:
-            logger.warning("No channels or groups configured")
+            logger.warning("No channels or groups registered yet")
             return
 
         logger.info(f"📢 Sending to public targets: {len(recipients)}")
-
-        success = 0
-        failed = 0
-
-        for chat_id in recipients:
-            try:
-                verse = self.cache.get_random_verse()
-                message = self.cache.format_verse(verse)
-
-                self.bot.send_message(chat_id, message)
-
-                success += 1
-                logger.info(
-                    f"✅ Sent to {chat_id}: {verse.get('surah_name')} "
-                    f"ayah {verse.get('verse_number')}"
-                )
-
-            except Exception as e:
-                failed += 1
-                logger.error(f"❌ Failed for {chat_id}: {e}")
-
+        success, failed = self.broadcast.send_to_many(recipients, chat_type="public")
         logger.info(f"📊 Public send complete | success={success} failed={failed}")
 
-    # -----------------------------
-    # Send to users
-    # -----------------------------
     def _send_to_users(self):
-        if not self.cache:
-            logger.error("Cache not initialized")
-            return
-
-        recipients = Config.get_user_ids()
+        with get_session() as session:
+            recipients = user_repo.list_active_ids(session)
 
         if not recipients:
-            logger.warning("No users configured")
+            logger.warning("No users registered yet")
             return
 
         logger.info(f"📢 Sending to users: {len(recipients)}")
-
-        success = 0
-        failed = 0
-
-        for chat_id in recipients:
-            try:
-                verse = self.cache.get_random_verse()
-                message = self.cache.format_verse(verse)
-
-                self.bot.send_message(chat_id, message)
-
-                success += 1
-                logger.info(
-                    f"✅ Sent to {chat_id}: {verse.get('surah_name')} "
-                    f"ayah {verse.get('verse_number')}"
-                )
-
-            except Exception as e:
-                failed += 1
-                logger.error(f"❌ Failed for user {chat_id}: {e}")
-
+        success, failed = self.broadcast.send_to_many(recipients, chat_type="user")
         logger.info(f"📊 User send complete | success={success} failed={failed}")
 
+    def _refresh_verse_cache(self):
+        try:
+            self.ingestion_service.run()
+        except Exception as e:
+            logger.error(f"Verse refresh job failed: {e}")
+
     # -----------------------------
-    # Start scheduler
+    # Lifecycle
     # -----------------------------
     def start(self):
-
         self.scheduler.add_job(
             func=self._send_to_public,
             trigger=CronTrigger(
                 hour=Config.SCHEDULE_PUBLIC_HOUR,
                 minute=Config.SCHEDULE_PUBLIC_MINUTE,
-                timezone=Config.SCHEDULE_TIMEZONE
+                timezone=Config.SCHEDULE_TIMEZONE,
             ),
             id="daily_public_verse",
-            replace_existing=True
+            replace_existing=True,
         )
 
         self.scheduler.add_job(
@@ -126,28 +87,33 @@ class MessageScheduler:
             trigger=CronTrigger(
                 hour=Config.SCHEDULE_USER_HOUR,
                 minute=Config.SCHEDULE_USER_MINUTE,
-                timezone=Config.SCHEDULE_TIMEZONE
+                timezone=Config.SCHEDULE_TIMEZONE,
             ),
             id="daily_user_verse",
-            replace_existing=True
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
+            func=self._refresh_verse_cache,
+            trigger="interval",
+            hours=Config.VERSE_REFRESH_INTERVAL_HOURS,
+            id="verse_refresh",
+            replace_existing=True,
         )
 
         self.scheduler.start()
 
         logger.info("=" * 50)
         logger.info("⏰ Scheduler started successfully")
-        logger.info(
-            f"📢 Public: {Config.SCHEDULE_PUBLIC_HOUR:02d}:{Config.SCHEDULE_PUBLIC_MINUTE:02d}"
-        )
-        logger.info(
-            f"👤 Users:  {Config.SCHEDULE_USER_HOUR:02d}:{Config.SCHEDULE_USER_MINUTE:02d}"
-        )
+        logger.info(f"📢 Public: {Config.SCHEDULE_PUBLIC_HOUR:02d}:{Config.SCHEDULE_PUBLIC_MINUTE:02d}")
+        logger.info(f"👤 Users:  {Config.SCHEDULE_USER_HOUR:02d}:{Config.SCHEDULE_USER_MINUTE:02d}")
+        logger.info(f"🔄 Verse refresh every {Config.VERSE_REFRESH_INTERVAL_HOURS}h")
         logger.info("=" * 50)
 
     def stop(self):
         self.scheduler.shutdown(wait=False)
         logger.info("⛔ Scheduler stopped")
 
-    def get_next_run(self, job_id="daily_public_verse"):
+    def get_next_run(self, job_id: str = "daily_public_verse"):
         job = self.scheduler.get_job(job_id)
         return job.next_run_time if job else None
