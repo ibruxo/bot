@@ -1,20 +1,28 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, String, func
+from sqlalchemy import Boolean, DateTime, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from db.base import Base
 
 
 class User(Base):
-    """A private (direct-message) user who has talked to the bot."""
+    """A private (direct-message) user who has talked to the bot, on any
+    supported platform (Bale, Telegram, Eitaa, Rubika)."""
 
     __tablename__ = "users"
+    __table_args__ = (
+        UniqueConstraint("platform", "external_id", name="uq_user_platform_external_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    # Chat's numeric chat id for this user (used to send messages).
-    user_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
+    # "bale" / "telegram" / "eitaa" / "rubika"
+    platform: Mapped[str] = mapped_column(String(32), index=True)
+
+    # The chat id on that platform. Stored as a string because Rubika
+    # uses opaque GUIDs, not numeric ids like the others.
+    external_id: Mapped[str] = mapped_column(String(128), index=True)
 
     username: Mapped[str | None] = mapped_column(String(255), nullable=True)
     first_name: Mapped[str | None] = mapped_column(String(255), nullable=True)

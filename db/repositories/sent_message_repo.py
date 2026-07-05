@@ -7,7 +7,8 @@ from db.models.sent_message import SentMessage
 
 def log(
     session: Session,
-    chat_id: int,
+    platform: str,
+    chat_id: str,
     chat_type: str,
     verse_id: Optional[int],
     message_text: Optional[str],
@@ -15,6 +16,7 @@ def log(
     error: Optional[str] = None,
 ) -> SentMessage:
     entry = SentMessage(
+        platform=platform,
         chat_id=chat_id,
         chat_type=chat_type,
         verse_id=verse_id,

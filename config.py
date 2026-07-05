@@ -8,10 +8,33 @@ load_dotenv()
 
 class Config:
     # -------------------------
-    # Bot
+    # Messenger platforms
     # -------------------------
-    BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
-    API_URL: str = os.getenv("API_URL", "https://tapi.bale.ai")
+    # Comma-separated list of platforms to run: bale, telegram, eitaa, rubika
+    _ENABLED_PLATFORMS_RAW: str = os.getenv("ENABLED_PLATFORMS", "bale")
+
+    BALE_BOT_TOKEN: str = os.getenv("BALE_BOT_TOKEN", "")
+    TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    EITAA_BOT_TOKEN: str = os.getenv("EITAA_BOT_TOKEN", "")
+    RUBIKA_BOT_TOKEN: str = os.getenv("RUBIKA_BOT_TOKEN", "")
+
+    # Kept for anything still using the single-bot-style URL (unused by
+    # the multi-platform adapters, which hardcode each platform's base
+    # URL — see services/messengers/).
+    BALE_API_URL: str = os.getenv("BALE_API_URL", "https://tapi.bale.ai")
+
+    @classmethod
+    def get_enabled_platforms(cls) -> List[str]:
+        return [p.strip() for p in cls._ENABLED_PLATFORMS_RAW.split(",") if p.strip()]
+
+    @classmethod
+    def get_platform_token(cls, platform: str) -> str:
+        return {
+            "bale": cls.BALE_BOT_TOKEN,
+            "telegram": cls.TELEGRAM_BOT_TOKEN,
+            "eitaa": cls.EITAA_BOT_TOKEN,
+            "rubika": cls.RUBIKA_BOT_TOKEN,
+        }.get(platform, "")
 
     # Reference id/name appended to outgoing messages
     BOT_ID: str = os.getenv("BOT_ID", "")
@@ -57,40 +80,38 @@ class Config:
     # After that, channels/groups/users are tracked in Postgres based on
     # real interactions with the bot (message received, bot added, etc).
     @staticmethod
-    def _parse_ids(env_var: str) -> List[int]:
+    def _parse_ids(env_var: str) -> List[str]:
         value = os.getenv(env_var, "")
         if not value:
             return []
-        return [int(id_str.strip()) for id_str in value.split(",") if id_str.strip()]
+        return [id_str.strip() for id_str in value.split(",") if id_str.strip()]
 
     @classmethod
-    def get_seed_channel_ids(cls) -> List[int]:
+    def get_seed_channel_ids(cls) -> List[str]:
         return cls._parse_ids("CHANNEL_IDS")
 
     @classmethod
-    def get_seed_group_ids(cls) -> List[int]:
+    def get_seed_group_ids(cls) -> List[str]:
         return cls._parse_ids("GROUP_IDS")
 
     @classmethod
-    def get_seed_user_ids(cls) -> List[int]:
+    def get_seed_user_ids(cls) -> List[str]:
         return cls._parse_ids("USER_IDS")
 
     @classmethod
-    def get_admin_ids(cls) -> List[int]:
+    def get_admin_ids(cls) -> List[str]:
         return cls._parse_ids("ADMIN_USER_IDS")
+
+    # Which platform CHANNEL_IDS/GROUP_IDS/USER_IDS/ADMIN_USER_IDS refer
+    # to. These env vars predate multi-platform support and only ever
+    # held Bale ids; kept as a single knob rather than one var per list.
+    LEGACY_SEED_PLATFORM: str = os.getenv("LEGACY_SEED_PLATFORM", "bale")
 
     # -------------------------
     # Rate limiting (Redis)
     # -------------------------
     RATE_LIMIT_MAX_REQUESTS: int = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "5"))
     RATE_LIMIT_WINDOW_SECONDS: int = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
-
-    # -------------------------
-    # Computed
-    # -------------------------
-    @classmethod
-    def get_full_api_url(cls) -> str:
-        return f"{cls.API_URL}/bot{cls.BOT_TOKEN}"
 
     # -------------------------
     # Database

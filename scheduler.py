@@ -1,4 +1,5 @@
 import logging
+from typing import Dict
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -7,6 +8,7 @@ from config import Config
 from db.repositories import channel_repo, group_repo, user_repo
 from db.session import get_session
 from services.broadcast_service import BroadcastService
+from services.messengers.base import MessengerAdapter
 from services.verse_ingestion_service import VerseIngestionService
 from services.verse_service import VerseService
 
@@ -16,14 +18,13 @@ logger = logging.getLogger(__name__)
 class MessageScheduler:
     def __init__(
         self,
-        bot,
+        adapters: Dict[str, MessengerAdapter],
         verse_service: VerseService,
         ingestion_service: VerseIngestionService,
     ):
-        self.bot = bot
         self.verse_service = verse_service
         self.ingestion_service = ingestion_service
-        self.broadcast = BroadcastService(bot, verse_service)
+        self.broadcast = BroadcastService(adapters, verse_service)
 
         self.scheduler = BackgroundScheduler(
             timezone=Config.SCHEDULE_TIMEZONE,
@@ -39,7 +40,7 @@ class MessageScheduler:
     # -----------------------------
     def _send_to_public(self):
         with get_session() as session:
-            recipients = channel_repo.list_active_ids(session) + group_repo.list_active_ids(session)
+            recipients = channel_repo.list_active(session) + group_repo.list_active(session)
 
         if not recipients:
             logger.warning("No channels or groups registered yet")
@@ -51,7 +52,7 @@ class MessageScheduler:
 
     def _send_to_users(self):
         with get_session() as session:
-            recipients = user_repo.list_active_ids(session)
+            recipients = user_repo.list_active(session)
 
         if not recipients:
             logger.warning("No users registered yet")

@@ -1,22 +1,25 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from db.base import Base
 
 
 class SentMessage(Base):
-    """Delivery history: every message the bot has sent out."""
+    """Delivery history: every message the bot has sent out, on any
+    platform."""
 
     __tablename__ = "sent_messages"
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    # The Bale chat id this message was sent to (user, group, or channel).
-    chat_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    platform: Mapped[str] = mapped_column(String(32), index=True)
 
-    # "user" / "group" / "channel"
+    # The chat id on that platform this message was sent to.
+    chat_id: Mapped[str] = mapped_column(String(128), index=True)
+
+    # "user" / "group" / "channel" / "public" (public = group+channel broadcast)
     chat_type: Mapped[str] = mapped_column(String(16))
 
     verse_id: Mapped[int | None] = mapped_column(

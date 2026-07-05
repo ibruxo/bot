@@ -24,31 +24,51 @@ fields"` or comes back empty:
 
 ---
 
+## Supported platforms
+
+| Platform | Sending | Receiving commands | Notes |
+|---|---|---|---|
+| Bale | ✅ | ✅ (long polling) | Telegram-compatible API |
+| Telegram | ✅ | ✅ (long polling) | Same API shape as Bale |
+| Rubika | ✅ | ✅ (long polling) | See caveat below |
+| Eitaa | ✅ | ❌ | Eitaayar's public bot API is send-only — no inbound updates mechanism is documented for it, so Eitaa only ever receives scheduled broadcasts, never replies to `/random` etc. |
+
+Turn platforms on/off with `ENABLED_PLATFORMS` in `.env` (comma-separated), and set the matching `*_BOT_TOKEN`. A platform with no token is skipped with a warning at startup.
+
+**Rubika caveat:** `services/messengers/rubika.py` implements the official `botapi.rubika.ir/v3` method-call API (confirmed from `rubika.ir/botapi/methods`), but the exact field name Rubika uses for the getUpdates pagination cursor wasn't confirmed from public docs. It's marked clearly in that file (`# ADJUST if...`) — if updates repeat or updates stop advancing, that's the one place to check.
+
 ## Architecture
 
 ```
-   Natiq Quran API
-         │
-         ▼
- VerseIngestionService
-         │
-         ▼
+        ┌─────────┬──────────┬─────────┬─────────┐
+        │  Bale   │ Telegram │  Eitaa  │ Rubika  │
+        └────┬────┴────┬─────┴────┬────┴────┬────┘
+             │  services/messengers/*.py    │
+             └──────────────┬────────────────┘
+                             │  NormalizedMessage
+                             ▼
+                         BotRunner (bot.py)
+                             │
+   Natiq Quran API           │
+         │                   │
+         ▼                   │
+ VerseIngestionService       │
+         │                   │
+         ▼                   │
     PostgreSQL  ──────►  Redis
  (source of truth)     (cache + rate limiting)
-         │                    │
-         └─────────┬──────────┘
-                    ▼
-                Bale Bot
-                    │
-        ┌───────────┼───────────┐
-        ▼           ▼           ▼
-      Users      Groups     Channels
 ```
 
 - **Postgres** is the source of truth for users, groups, channels, verses,
-  admins, and delivery history (`sent_messages`).
+  admins, and delivery history (`sent_messages`) — all tagged with a
+  `platform` column, since the same numeric-looking id could theoretically
+  exist on two different platforms.
 - **Redis** is only a cache: a fast random-access copy of verses, plus
-  rate-limit counters. It's never the only place data lives.
+  rate-limit counters, keyed per `platform:chat_id`.
+- Every messenger adapter (`services/messengers/`) implements one shared
+  interface (`get_updates` / `send_message`), returning a
+  `NormalizedMessage` so `bot.py`'s command handling never needs to know
+  which platform a message came from.
 - Every incoming message registers its chat (user/group/channel) in
   Postgres, so scheduled broadcasts grow with real bot usage instead of
   relying only on a static env var list.
@@ -73,11 +93,16 @@ fields"` or comes back empty:
 │   └── rate_limiter.py
 │
 ├── services/
+│   ├── messengers/                # One adapter per platform, shared interface
+│   │   ├── base.py                # MessengerAdapter + NormalizedMessage
+│   │   ├── telegram_like.py       # Shared Bale/Telegram polling logic
+│   │   ├── bale.py / telegram.py / eitaa.py / rubika.py
+│   │   └── registry.py            # Builds adapters from ENABLED_PLATFORMS
 │   ├── quran_api_client.py       # Talks to api.natiq.ir
 │   ├── verse_ingestion_service.py# API -> Postgres -> Redis
 │   ├── verse_service.py          # get_random_verse() + format_verse()
 │   ├── user_service.py           # registers chats, admin bootstrap, stats
-│   └── broadcast_service.py      # send-and-log for scheduled jobs
+│   └── broadcast_service.py      # send-and-log for scheduled jobs, routes per platform
 │
 ├── scripts/
 │   └── ingest_verses.py          # `python -m scripts.ingest_verses`
@@ -124,8 +149,7 @@ python bot.py
 
 ## Admin commands
 
-Set `ADMIN_USER_IDS` in `.env` (comma-separated Bale user ids). On
-startup those users are promoted to admin in Postgres. Admins can run:
+Set `ADMIN_USER_IDS` in `.env` (comma-separated ids, on the platform set by `LEGACY_SEED_PLATFORM`, default `bale`). On startup those users are promoted to admin in Postgres. Admins can run:
 
 - `/stats` — user/group/channel counts
 

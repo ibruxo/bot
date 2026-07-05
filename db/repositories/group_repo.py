@@ -6,17 +6,18 @@ from sqlalchemy.orm import Session
 from db.models.group import Group
 
 
-def get_by_id(session: Session, chat_id: int) -> Optional[Group]:
-    stmt = select(Group).where(Group.chat_id == chat_id)
+def get_by_external_id(session: Session, platform: str, external_id: str) -> Optional[Group]:
+    stmt = select(Group).where(Group.platform == platform, Group.external_id == external_id)
     return session.scalar(stmt)
 
 
 def get_or_create(
     session: Session,
-    chat_id: int,
+    platform: str,
+    external_id: str,
     title: Optional[str] = None,
 ) -> Group:
-    group = get_by_id(session, chat_id)
+    group = get_by_external_id(session, platform, external_id)
 
     if group:
         if title is not None:
@@ -24,21 +25,21 @@ def get_or_create(
         group.is_active = True
         return group
 
-    group = Group(chat_id=chat_id, title=title)
+    group = Group(platform=platform, external_id=external_id, title=title)
     session.add(group)
     session.flush()
     return group
 
 
-def deactivate(session: Session, chat_id: int) -> None:
-    group = get_by_id(session, chat_id)
+def deactivate(session: Session, platform: str, external_id: str) -> None:
+    group = get_by_external_id(session, platform, external_id)
     if group:
         group.is_active = False
 
 
-def list_active_ids(session: Session) -> list[int]:
-    stmt = select(Group.chat_id).where(Group.is_active.is_(True))
-    return list(session.scalars(stmt))
+def list_active(session: Session) -> list[tuple[str, str]]:
+    stmt = select(Group.platform, Group.external_id).where(Group.is_active.is_(True))
+    return list(session.execute(stmt).all())
 
 
 def count(session: Session) -> int:
