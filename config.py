@@ -7,84 +7,136 @@ load_dotenv()
 
 
 class Config:
-    # -------------------------
-    # Messenger platforms
-    # -------------------------
-    # Comma-separated list of platforms to run: bale, telegram, eitaa, rubika
-    _ENABLED_PLATFORMS_RAW: str = os.getenv("ENABLED_PLATFORMS", "bale")
+    # =====================================================
+    # Telegram
+    # =====================================================
 
-    BALE_BOT_TOKEN: str = os.getenv("BALE_BOT_TOKEN", "")
-    TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
-    EITAA_BOT_TOKEN: str = os.getenv("EITAA_BOT_TOKEN", "")
-    RUBIKA_BOT_TOKEN: str = os.getenv("RUBIKA_BOT_TOKEN", "")
-
-    # Kept for anything still using the single-bot-style URL (unused by
-    # the multi-platform adapters, which hardcode each platform's base
-    # URL — see services/messengers/).
-    BALE_API_URL: str = os.getenv("BALE_API_URL", "https://tapi.bale.ai")
-
-    @classmethod
-    def get_enabled_platforms(cls) -> List[str]:
-        return [p.strip() for p in cls._ENABLED_PLATFORMS_RAW.split(",") if p.strip()]
-
-    @classmethod
-    def get_platform_token(cls, platform: str) -> str:
-        return {
-            "bale": cls.BALE_BOT_TOKEN,
-            "telegram": cls.TELEGRAM_BOT_TOKEN,
-            "eitaa": cls.EITAA_BOT_TOKEN,
-            "rubika": cls.RUBIKA_BOT_TOKEN,
-        }.get(platform, "")
-
-    # Reference id/name appended to outgoing messages
-    BOT_ID: str = os.getenv("BOT_ID", "")
-
-    # -------------------------
-    # Debug
-    # -------------------------
-    DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
-    DEBUG_VERSE_LIMIT: int = int(os.getenv("DEBUG_VERSE_LIMIT", "200"))
-
-    # -------------------------
-    # Natiq Quran API
-    # -------------------------
-    QURAN_API_URL: str = os.getenv("QURAN_API_URL", "https://api.natiq.ir/api")
-    MUSHAF: str = os.getenv("MUSHAF", "hafs")
-    TRANSLATOR_UUID: str = os.getenv("TRANSLATOR_UUID", "")
-    PAGE_SIZE: int = int(os.getenv("PAGE_SIZE", "200"))
-
-    # -------------------------
-    # Scheduler
-    # -------------------------
-    SCHEDULE_PUBLIC_HOUR: int = int(os.getenv("SCHEDULE_PUBLIC_HOUR", "12"))
-    SCHEDULE_PUBLIC_MINUTE: int = int(os.getenv("SCHEDULE_PUBLIC_MINUTE", "0"))
-
-    SCHEDULE_USER_HOUR: int = int(os.getenv("SCHEDULE_USER_HOUR", "3"))
-    SCHEDULE_USER_MINUTE: int = int(os.getenv("SCHEDULE_USER_MINUTE", "0"))
-
-    SCHEDULE_TIMEZONE: str = os.getenv("SCHEDULE_TIMEZONE", "Asia/Riyadh")
-
-    # How often (hours) to re-pull verses from the Quran API into Postgres
-    # and refresh the Redis cache from Postgres.
-    VERSE_REFRESH_INTERVAL_HOURS: int = int(
-        os.getenv("VERSE_REFRESH_INTERVAL_HOURS", "24")
+    BOT_TOKEN: str = os.getenv(
+        "BOT_TOKEN",
+        "",
     )
 
-    # Pull verses on process startup if Postgres has none yet.
-    INGEST_ON_STARTUP: bool = os.getenv("INGEST_ON_STARTUP", "True").lower() == "true"
+    API_URL: str = os.getenv(
+        "BOT_API_URL",
+        "",
+    )
 
-    # -------------------------
-    # Static seed recipients (optional)
-    # -------------------------
-    # These are only used once, on first startup, to seed the DB tables.
-    # After that, channels/groups/users are tracked in Postgres based on
-    # real interactions with the bot (message received, bot added, etc).
+    # =====================================================
+    # Debug
+    # =====================================================
+
+    DEBUG: bool = (
+        os.getenv(
+            "DEBUG",
+            "False",
+        ).lower()
+        == "true"
+    )
+
+    DEBUG_VERSE_LIMIT: int = int(
+        os.getenv(
+            "DEBUG_VERSE_LIMIT",
+            "200",
+        )
+    )
+
+    # =====================================================
+    # Quran API
+    # =====================================================
+
+    QURAN_API_URL: str = os.getenv(
+        "QURAN_API_URL",
+        "https://api.natiq.ir/api",
+    )
+
+    MUSHAF: str = os.getenv(
+        "MUSHAF",
+        "hafs",
+    )
+
+    TRANSLATOR_UUID: str = os.getenv(
+        "TRANSLATOR_UUID",
+        "",
+    )
+
+    PAGE_SIZE: int = int(
+        os.getenv(
+            "PAGE_SIZE",
+            "200",
+        )
+    )
+
+    # =====================================================
+    # Scheduler
+    # =====================================================
+
+    SCHEDULE_PUBLIC_HOUR: int = int(
+        os.getenv(
+            "SCHEDULE_PUBLIC_HOUR",
+            "12",
+        )
+    )
+
+    SCHEDULE_PUBLIC_MINUTE: int = int(
+        os.getenv(
+            "SCHEDULE_PUBLIC_MINUTE",
+            "0",
+        )
+    )
+
+    SCHEDULE_USER_HOUR: int = int(
+        os.getenv(
+            "SCHEDULE_USER_HOUR",
+            "3",
+        )
+    )
+
+    SCHEDULE_USER_MINUTE: int = int(
+        os.getenv(
+            "SCHEDULE_USER_MINUTE",
+            "0",
+        )
+    )
+
+    SCHEDULE_TIMEZONE: str = os.getenv(
+        "SCHEDULE_TIMEZONE",
+        "Asia/Riyadh",
+    )
+
+    # Refresh Quran data interval
+
+    VERSE_REFRESH_INTERVAL_HOURS: int = int(
+        os.getenv(
+            "VERSE_REFRESH_INTERVAL_HOURS",
+            "24",
+        )
+    )
+
+    INGEST_ON_STARTUP: bool = (
+        os.getenv(
+            "INGEST_ON_STARTUP",
+            "True",
+        ).lower()
+        == "true"
+    )
+
+    # =====================================================
+    # Static recipients
+    # =====================================================
+
     @staticmethod
-    def _parse_ids(env_var: str) -> List[str]:
-        value = os.getenv(env_var, "")
+    def _parse_ids(
+        env_var: str,
+    ) -> List[str]:
+        value = os.getenv(
+            env_var,
+            "",
+        )
+
         if not value:
             return []
-        return [id_str.strip() for id_str in value.split(",") if id_str.strip()]
+
+        return [item.strip() for item in value.split(",") if item.strip()]
 
     @classmethod
     def get_seed_channel_ids(cls) -> List[str]:
@@ -102,23 +154,38 @@ class Config:
     def get_admin_ids(cls) -> List[str]:
         return cls._parse_ids("ADMIN_USER_IDS")
 
-    # Which platform CHANNEL_IDS/GROUP_IDS/USER_IDS/ADMIN_USER_IDS refer
-    # to. These env vars predate multi-platform support and only ever
-    # held Bale ids; kept as a single knob rather than one var per list.
-    LEGACY_SEED_PLATFORM: str = os.getenv("LEGACY_SEED_PLATFORM", "bale")
+    # =====================================================
+    # Rate limiting
+    # =====================================================
 
-    # -------------------------
-    # Rate limiting (Redis)
-    # -------------------------
-    RATE_LIMIT_MAX_REQUESTS: int = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "5"))
-    RATE_LIMIT_WINDOW_SECONDS: int = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
+    RATE_LIMIT_MAX_REQUESTS: int = int(
+        os.getenv(
+            "RATE_LIMIT_MAX_REQUESTS",
+            "5",
+        )
+    )
 
-    # -------------------------
+    RATE_LIMIT_WINDOW_SECONDS: int = int(
+        os.getenv(
+            "RATE_LIMIT_WINDOW_SECONDS",
+            "60",
+        )
+    )
+
+    # =====================================================
     # Database
-    # -------------------------
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "")
+    # =====================================================
 
-    # -------------------------
+    DATABASE_URL: str = os.getenv(
+        "DATABASE_URL",
+        "",
+    )
+
+    # =====================================================
     # Redis
-    # -------------------------
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    # =====================================================
+
+    REDIS_URL: str = os.getenv(
+        "REDIS_URL",
+        "redis://localhost:6379/0",
+    )
