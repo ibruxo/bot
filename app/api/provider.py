@@ -10,22 +10,20 @@ from app.cache.quran import QuranCache
 from app.core.config import get_settings
 from app.schemas.ayah import Ayah
 
-
 logger = logging.getLogger(__name__)
 
 
 class NatiqProvider:
     """
-    Natiq Quran API provider.
+    Provider for Natiq Quran API.
 
-    Handles:
-    - Ayahs
-    - Surahs
-    - Translations
-    - Takhtits
-    - Random ayah generation
+    Responsibilities:
+    - Load all ayahs using offset pagination
+    - Extract surahs from ayah metadata
+    - Load translations when available
+    - Load takhtits
+    - Provide random ayahs
     """
-
 
     def __init__(
         self,
@@ -37,77 +35,54 @@ class NatiqProvider:
         self._cache = cache
         self._settings = get_settings()
 
-
-
-    # =====================================================
+    # ---------------------------------------------------------
     # Helpers
-    # =====================================================
-
+    # ---------------------------------------------------------
 
     @staticmethod
-    def _extract_results(
+    def _extract_list(
         payload: Any,
     ) -> list[dict[str, Any]]:
 
         if isinstance(payload, list):
             return payload
 
-
         if isinstance(payload, dict):
 
-            if "results" in payload:
-                return payload["results"] or []
-
-
-            if "data" in payload:
-                return payload["data"] or []
-
+            return (
+                payload.get("results")
+                or payload.get("data")
+                or []
+            )
 
         return []
 
-
-
-    @staticmethod
-    def _extract_next(
-        payload: Any,
-    ) -> bool:
-
-        if not isinstance(payload, dict):
-            return False
-
-
-        return bool(
-            payload.get("next")
-        )
-
-
-
-    async def _request(
+    async def _get_with_retry(
         self,
         endpoint: str,
         *,
-        params: dict | None = None,
+        params: dict[str, Any] | None = None,
         retries: int = 3,
-    ):
-
+    ) -> Any:
 
         last_error = None
-
 
         for attempt in range(retries):
 
             try:
 
-                return await self._client.get(
+                response = await self._client.get(
                     endpoint,
                     params=params,
                 )
 
+                return response
 
             except Exception as exc:
 
                 last_error = exc
 
+                delay = 2 ** attempt
 
                 logger.warning(
                     "Request failed %s attempt %s/%s: %s",
@@ -117,57 +92,46 @@ class NatiqProvider:
                     exc,
                 )
 
-
-                await asyncio.sleep(
-                    2 ** attempt
-                )
-
+                await asyncio.sleep(delay)
 
         raise last_error
 
-
-
-    # =====================================================
+    # ---------------------------------------------------------
     # Ayahs
-    # =====================================================
-
+    # ---------------------------------------------------------
 
     async def list_ayahs(
         self,
     ) -> list[dict[str, Any]]:
 
-
         logger.info(
             "Loading Quran ayahs..."
         )
 
+        results: list[dict[str, Any]] = []
 
-        results = []
+        offset = 0
 
-        page = 1
+        limit = 200
 
+        mushaf = self._settings.QURAN_MUSHAF
 
         while True:
 
-
-            response = await self._request(
+            response = await self._get_with_retry(
                 "/ayahs/",
                 params={
-                    "page": page,
-                    "mushaf": self._settings.QURAN_MUSHAF,
+                    "mushaf": mushaf,
+                    "offset": offset,
                 },
             )
 
-
-            payload = response.json()
-
-
-            items = self._extract_results(
-                payload
+            items = self._extract_list(
+                response.json()
             )
 
-
             if not items:
+
                 break
 
 
@@ -180,12 +144,7 @@ class NatiqProvider:
             )
 
 
-            if not self._extract_next(payload):
-                break
-
-
-            page += 1
-
+            offset += limit
 
 
         logger.info(
@@ -193,197 +152,226 @@ class NatiqProvider:
             len(results),
         )
 
-
         return results
 
 
-
-
-    # =====================================================
+    # ---------------------------------------------------------
     # Surahs
-    # =====================================================
-
+    # ---------------------------------------------------------
 
     async def list_surahs(
         self,
     ) -> list[dict[str, Any]]:
 
+        """
+        Surahs are embedded inside ayahs.
+        API /surahs/ endpoint is not used.
+        """
 
-        response = await self._request(
-            "/surahs/",
-            params={
-                "mushaf": self._settings.QURAN_MUSHAF,
-            },
+        if not self._cache.ayahs:
+
+            logger.warning(
+                "Cannot extract surahs without ayahs"
+            )
+
+            return []
+
+
+        surahs: dict[str, dict[str, Any]] = {}
+
+
+        for ayah in self._cache.ayahs:
+
+            surah = ayah.get(
+                "surah"
+            )
+
+            if not surah:
+
+                continue
+
+
+            uuid = surah.get(
+                "uuid"
+            )
+
+            if not uuid:
+
+                continue
+
+
+            if uuid not in surahs:
+
+                surahs[uuid] = surah
+
+
+        result = list(
+            surahs.values()
         )
 
 
-        data = self._extract_results(
-            response.json()
+        result.sort(
+            key=lambda x: x.get(
+                "number",
+                0,
+            )
         )
 
 
         logger.info(
-            "Loaded %s surahs",
-            len(data),
+            "Extracted %s surahs",
+            len(result),
         )
 
 
-        return data
+        return result
 
 
-
-
-    # =====================================================
+    # ---------------------------------------------------------
     # Translations
-    # =====================================================
-
+    # ---------------------------------------------------------
 
     async def list_translations(
         self,
     ) -> list[dict[str, Any]]:
 
+        try:
 
-        if not self._settings.QURAN_TRANSLATION_LANGUAGE:
-
-            logger.warning(
-                "No translation language configured"
-            )
-
-            return []
-
-
-
-        response = await self._request(
-            "/translations/",
-            params={
-                "language":
-                    self._settings.QURAN_TRANSLATION_LANGUAGE,
-
-                "mushaf":
-                    self._settings.QURAN_MUSHAF,
-            },
-        )
-
-
-        translations = self._extract_results(
-            response.json()
-        )
-
-
-        if not translations:
-            return []
-
-
-
-        translation = translations[0]
-
-
-        uuid = (
-            translation.get("uuid")
-            or translation.get("id")
-        )
-
-
-        if not uuid:
-
-            logger.warning(
-                "Translation UUID missing"
-            )
-
-            return []
-
-
-
-        return await self._load_translation_ayahs(
-            uuid
-        )
-
-
-
-
-    async def _load_translation_ayahs(
-        self,
-        uuid: str,
-    ):
-
-
-        results = []
-
-        page = 1
-
-
-        while True:
-
-
-            response = await self._request(
-                f"/translations/{uuid}/ayahs/",
+            response = await self._get_with_retry(
+                "/translations/",
                 params={
-                    "page": page,
+                    "mushaf": self._settings.QURAN_MUSHAF,
+                    "language": self._settings.QURAN_TRANSLATION_LANGUAGE,
                 },
             )
 
 
-            payload = response.json()
+            translations = self._extract_list(
+                response.json()
+            )
 
 
-            items = self._extract_results(
-                payload
+            if not translations:
+
+                logger.info(
+                    "No translations available"
+                )
+
+                return []
+
+
+            translation = translations[0]
+
+
+            uuid = (
+                translation.get("uuid")
+                or translation.get("id")
+            )
+
+
+            if not uuid:
+
+                return []
+
+
+            return await self._load_translation_ayahs(
+                uuid
+            )
+
+
+        except Exception as exc:
+
+            logger.warning(
+                "Failed loading translations: %s",
+                exc,
+            )
+
+            return []
+
+
+    async def _load_translation_ayahs(
+        self,
+        translation_uuid: str,
+    ) -> list[dict[str, Any]]:
+
+        results = []
+
+        offset = 0
+
+        limit = 200
+
+
+        while True:
+
+            response = await self._get_with_retry(
+                f"/translations/{translation_uuid}/ayahs/",
+                params={
+                    "offset": offset,
+                },
+            )
+
+
+            items = self._extract_list(
+                response.json()
             )
 
 
             if not items:
+
                 break
 
 
             results.extend(items)
 
 
-            logger.info(
-                "Loaded %s translations",
-                len(results),
-            )
+            offset += limit
 
 
-            if not self._extract_next(payload):
-                break
-
-
-            page += 1
-
+        logger.info(
+            "Loaded %s translations",
+            len(results),
+        )
 
 
         return results
 
 
-
-    # =====================================================
+    # ---------------------------------------------------------
     # Takhtits
-    # =====================================================
-
+    # ---------------------------------------------------------
 
     async def list_takhtits(
         self,
-    ):
+    ) -> list[dict[str, Any]]:
+
+        try:
+
+            response = await self._get_with_retry(
+                "/takhtits/",
+                params={
+                    "mushaf": self._settings.QURAN_MUSHAF,
+                },
+            )
 
 
-        response = await self._request(
-            "/takhtits/",
-            params={
-                "mushaf": self._settings.QURAN_MUSHAF,
-            },
-        )
+            return self._extract_list(
+                response.json()
+            )
 
 
-        return self._extract_results(
-            response.json()
-        )
+        except Exception as exc:
+
+            logger.warning(
+                "Failed loading takhtits: %s",
+                exc,
+            )
+
+            return []
 
 
-
-    # =====================================================
+    # ---------------------------------------------------------
     # Random Ayah
-    # =====================================================
-
+    # ---------------------------------------------------------
 
     async def random_ayah(
         self,
@@ -393,15 +381,43 @@ class NatiqProvider:
         if not self._cache.ayahs:
 
             raise RuntimeError(
-                "No ayahs cached"
+                "Quran cache is empty"
             )
-
 
 
         data = random.choice(
             self._cache.ayahs
         )
 
+
+        surah = data.get(
+            "surah",
+            {},
+        )
+
+
+        names = surah.get(
+            "names",
+            [],
+        )
+
+
+        surah_name = "Unknown"
+
+
+        if names:
+
+            first = names[0]
+
+            if isinstance(first, dict):
+
+                surah_name = (
+                    first.get("name")
+                    or "Unknown"
+                )
+
+
+        translation = None
 
 
         ayah_uuid = (
@@ -410,83 +426,18 @@ class NatiqProvider:
         )
 
 
-
-        surah = data.get(
-            "surah"
-        )
-
-
-        surah_number = 0
-        surah_name = "Unknown"
-
-
-
-        if isinstance(
-            surah,
-            dict
-        ):
-
-            surah_number = (
-                surah.get("number")
-                or surah.get("id")
-                or 0
-            )
-
-
-            names = surah.get(
-                "names",
-                []
-            )
-
-
-            if names:
-
-                first = names[0]
-
-
-                if isinstance(
-                    first,
-                    dict
-                ):
-
-                    surah_name = (
-                        first.get("name")
-                        or "Unknown"
-                    )
-
-
-
-        translation = None
-
-
         for item in self._cache.translations:
 
-
-            ayah = item.get(
-                "ayah"
-            )
-
-
-            if isinstance(
-                ayah,
-                dict
+            if (
+                item.get("ayah")
+                == ayah_uuid
             ):
-
-                ayah = (
-                    ayah.get("uuid")
-                    or ayah.get("id")
-                )
-
-
-            if ayah == ayah_uuid:
 
                 translation = (
                     item.get("text")
-                    or item.get("translation")
                 )
 
                 break
-
 
 
         return Ayah(
@@ -494,13 +445,12 @@ class NatiqProvider:
                 "text",
                 "",
             ),
-
             translation=translation,
-
             surah_name=surah_name,
-
-            surah_number=surah_number,
-
+            surah_number=surah.get(
+                "number",
+                0,
+            ),
             ayah_number=data.get(
                 "number",
                 0,
