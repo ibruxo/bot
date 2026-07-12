@@ -1,39 +1,136 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import httpx
 
 from app.core.config import get_settings
 
+
 logger = logging.getLogger(__name__)
 
 
 class APIClient:
+    """
+    Async HTTP client for Natiq API.
 
-    def __init__(self):
+    Responsibilities:
+    - Maintain HTTP session
+    - Add authentication headers
+    - Handle API requests
+    - Normalize API errors
+    """
 
-        settings = get_settings()
 
-        self.client = httpx.AsyncClient(
-            base_url=settings.NATIQ_PRIMARY_API,
-            timeout=15.0,
-            headers={
-                "Accept": "application/json",
-            },
+    def __init__(self) -> None:
+
+        self._settings = get_settings()
+
+        self._client = httpx.AsyncClient(
+            base_url=(
+                self._settings.NATIQ_PRIMARY_API
+                .rstrip("/")
+            ),
+            timeout=(
+                self._settings.NATIQ_API_TIMEOUT
+            ),
+            headers=(
+                self._settings.api_headers
+            ),
+            follow_redirects=True,
         )
 
-        if settings.NATIQ_API_TOKEN:
-            self.client.headers["Authorization"] = (
-                f"Token {settings.NATIQ_API_TOKEN}"
+
+        logger.info(
+            "HTTP client initialized."
+        )
+
+
+
+    async def get(
+        self,
+        endpoint: str,
+        *,
+        params: dict[str, Any] | None = None,
+    ) -> httpx.Response:
+        """
+        GET request.
+
+        endpoint examples:
+
+        /ayahs/
+        /surahs/
+        /translations/{uuid}/ayahs/
+        """
+
+
+        if not endpoint.startswith("/"):
+            endpoint = f"/{endpoint}"
+
+
+        response = await self._client.get(
+            endpoint,
+            params=params,
+        )
+
+
+        if response.status_code >= 400:
+
+            logger.warning(
+                "API error %s %s: %s",
+                response.status_code,
+                endpoint,
+                response.text[:300],
             )
 
-    async def connect(self):
 
-        logger.info("HTTP client initialized.")
+            response.raise_for_status()
 
-    async def close(self):
 
-        await self.client.aclose()
+        return response
 
-        logger.info("HTTP client closed.")
+
+
+    async def post(
+        self,
+        endpoint: str,
+        *,
+        json: dict | None = None,
+    ) -> httpx.Response:
+
+
+        if not endpoint.startswith("/"):
+            endpoint = f"/{endpoint}"
+
+
+        response = await self._client.post(
+            endpoint,
+            json=json,
+        )
+
+
+        if response.status_code >= 400:
+
+            logger.warning(
+                "API error %s %s: %s",
+                response.status_code,
+                endpoint,
+                response.text[:300],
+            )
+
+
+            response.raise_for_status()
+
+
+        return response
+
+
+
+    async def close(self) -> None:
+
+        await self._client.aclose()
+
+        logger.info(
+            "HTTP client closed."
+        )
