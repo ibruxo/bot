@@ -5,11 +5,19 @@ import logging
 from telegram import Update
 from telegram.ext import CommandHandler, ContextTypes
 
+from app.bot.guards.rate_limit import RateLimitRule, rate_limit
+
 
 logger = logging.getLogger(__name__)
 
 
 
+@rate_limit(
+    RateLimitRule(
+        limit=3,
+        window_seconds=10,
+    )
+)
 async def start(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,

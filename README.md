@@ -71,6 +71,23 @@ python -m pip install -r requirements-dev.txt
 - A GitHub Actions CI workflow is included at `.github/workflows/ci.yml`.
 - we also use MakeFile which make it easer to manage, build and debug the project
 
+## Database Migrations
+
+Alembic is configured in this repository.
+
+Common commands:
+
+```bash
+alembic upgrade head
+alembic downgrade -1
+alembic revision --autogenerate -m "describe change"
+```
+
+The current migration includes UUID column normalization for:
+- `favorites.ayah_uuid`
+- `reading_progress.surah_uuid`
+- `reading_progress.ayah_uuid`
+
 ## Usage
 
 - Use `/random` in Telegram to receive a random Quran ayah.

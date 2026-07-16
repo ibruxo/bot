@@ -5,6 +5,7 @@ import logging
 from telegram import Update
 from telegram.ext import CommandHandler, ContextTypes
 
+from app.bot.guards.rate_limit import RateLimitRule, rate_limit
 from app.core.container import Container
 from app.schemas.ayah import Ayah
 from app.ui.keyboards import random_ayah_keyboard
@@ -15,9 +16,17 @@ logger = logging.getLogger(__name__)
 
 def format_ayah(ayah: Ayah) -> str:
 
+    surah_title = ayah.surah_name
+
+    if ayah.surah_icon:
+
+        surah_title = (
+            f"{surah_title} {ayah.surah_icon}"
+        )
+
     text = (
         f"﴿ {ayah.text} ﴾\n\n"
-        f"📖 {ayah.surah_name}\n"
+        f"📖 {surah_title}\n"
         f"آیه {ayah.ayah_number} | "
         f"سوره {ayah.surah_number}"
     )
@@ -36,6 +45,12 @@ def format_ayah(ayah: Ayah) -> str:
 
 
 
+@rate_limit(
+    RateLimitRule(
+        limit=5,
+        window_seconds=15,
+    )
+)
 async def random_ayah(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,

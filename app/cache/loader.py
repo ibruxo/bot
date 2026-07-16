@@ -1,63 +1,142 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
+
+from app.api.provider import NatiqProvider
+from app.cache.quran import QuranCache
+
 
 logger = logging.getLogger(__name__)
 
 
 class QuranCacheLoader:
+    """
+    Loads all Quran resources into memory.
 
+    Startup order:
+
+        1. Ayahs
+        2. Takhtits
+        3. Translations
+        4. Surahs
+
+    After this finishes, every lookup performed by the provider
+    is O(1) through the cache lookup tables.
+    """
 
     def __init__(
         self,
-        provider,
-        cache,
-    ):
+        provider: NatiqProvider,
+        cache: QuranCache,
+    ) -> None:
 
-        self.provider = provider
-        self.cache = cache
+        self._provider = provider
+        self._cache = cache
 
 
-
-    async def load(self):
+    async def load(self) -> None:
 
         logger.info(
             "Loading Quran cache..."
         )
 
+        await self._load_ayahs()
 
-        # Load ayahs
-        ayahs = await self.provider.list_ayahs()
+        await self._load_takhtits()
 
-        self.cache.set_ayahs(
-            ayahs
+        await self._load_translations()
+
+        await self._load_surahs()
+
+        logger.info(
+            "Quran cache loaded successfully."
         )
 
 
-        if len(ayahs) < 6000:
+    # --------------------------------------------------
+    # Ayahs
+    # --------------------------------------------------
+
+    async def _load_ayahs(
+        self,
+    ) -> None:
+
+        ayahs = await self._provider.list_ayahs()
+
+        self._cache.set_ayahs(
+            ayahs,
+        )
+
+        if len(ayahs) != 6236:
 
             logger.warning(
-                "Ayah count looks incorrect: %s",
+                "Unexpected ayah count: %s",
                 len(ayahs),
             )
 
 
-        # Load translations
-        translations = await self.provider.list_translations()
+    # --------------------------------------------------
+    # Takhtits
+    # --------------------------------------------------
 
-        self.cache.set_translations(
-            translations
+    async def _load_takhtits(
+        self,
+    ) -> None:
+
+        takhtits = await self._provider.list_takhtits()
+
+        self._cache.set_takhtits(
+            takhtits,
         )
 
+        if len(takhtits) != len(self._cache.ayahs):
 
-        # Load takhtits
-        takhtits = await self.provider.list_takhtits()
+            logger.warning(
+                "Takhtit count (%s) does not match ayah count (%s).",
+                len(takhtits),
+                len(self._cache.ayahs),
+            )
 
-        self.cache.set_takhtits(
-            takhtits
+
+    # --------------------------------------------------
+    # Translations
+    # --------------------------------------------------
+
+    async def _load_translations(
+        self,
+    ) -> None:
+
+        translations = await self._provider.list_translations()
+
+        self._cache.set_translations(
+            translations,
         )
 
+        if not translations:
 
-        logger.info(
-            "Quran cache loading completed."
+            logger.warning(
+                "No translations were loaded."
+            )
+
+
+    # --------------------------------------------------
+    # Surahs
+    # --------------------------------------------------
+
+    async def _load_surahs(
+        self,
+    ) -> None:
+
+        surahs = await self._provider.list_surahs()
+
+        self._cache.set_surahs(
+            surahs,
         )
+
+        if len(surahs) != 114:
+
+            logger.warning(
+                "Unexpected surah count: %s",
+                len(surahs),
+            )

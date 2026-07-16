@@ -4,6 +4,7 @@ import logging
 
 from app.api.client import APIClient
 from app.api.provider import NatiqProvider
+from app.bot.guards.rate_limit import configure_rate_limiter
 
 from app.cache.quran import QuranCache
 from app.cache.loader import QuranCacheLoader
@@ -123,6 +124,9 @@ class Container:
         # Load Quran data
         await self._loader.load()
 
+        configure_rate_limiter(
+            self._redis,
+        )
 
         logger.info(
             "Container startup completed."
@@ -145,6 +149,10 @@ class Container:
         if hasattr(self._database, "close"):
             await self._database.close()
 
+
+        configure_rate_limiter(
+            None,
+        )
 
         # Redis
         if hasattr(self._redis, "close"):

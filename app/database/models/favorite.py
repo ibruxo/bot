@@ -1,5 +1,6 @@
+import uuid
+
 from sqlalchemy import ForeignKey
-from sqlalchemy import String
 from sqlalchemy import UniqueConstraint
 
 from sqlalchemy.orm import Mapped
@@ -11,6 +12,7 @@ from app.database.models.mixins import (
     TimestampMixin,
     UUIDMixin,
 )
+from app.database.types import UUIDType
 
 
 class Favorite(
@@ -44,8 +46,8 @@ class Favorite(
         index=True,
     )
 
-    ayah_uuid: Mapped[str] = mapped_column(
-        String(36),
+    ayah_uuid: Mapped[uuid.UUID] = mapped_column(
+        UUIDType(),
         index=True,
     )
 

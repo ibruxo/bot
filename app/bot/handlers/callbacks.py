@@ -8,6 +8,7 @@ from telegram.ext import (
     ContextTypes,
 )
 
+from app.bot.guards.rate_limit import RateLimitRule, rate_limit
 from app.core.container import Container
 from app.schemas.ayah import Ayah
 from app.ui.keyboards import random_ayah_keyboard
@@ -15,6 +16,12 @@ from app.ui.keyboards import random_ayah_keyboard
 from app.bot.handlers.random import format_ayah
 
 
+@rate_limit(
+    RateLimitRule(
+        limit=8,
+        window_seconds=20,
+    )
+)
 async def _handle_navigation(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,

@@ -1,5 +1,6 @@
+import uuid
+
 from sqlalchemy import ForeignKey
-from sqlalchemy import String
 
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
@@ -10,6 +11,7 @@ from app.database.models.mixins import (
     TimestampMixin,
     UUIDMixin,
 )
+from app.database.types import UUIDType
 
 
 class ReadingProgress(
@@ -36,12 +38,12 @@ class ReadingProgress(
         index=True,
     )
 
-    surah_uuid: Mapped[str] = mapped_column(
-        String(36),
+    surah_uuid: Mapped[uuid.UUID] = mapped_column(
+        UUIDType(),
     )
 
-    ayah_uuid: Mapped[str] = mapped_column(
-        String(36),
+    ayah_uuid: Mapped[uuid.UUID] = mapped_column(
+        UUIDType(),
     )
 
     user = relationship(

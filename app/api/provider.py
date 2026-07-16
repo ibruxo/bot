@@ -8,7 +8,6 @@ from typing import Any
 from app.api.client import APIClient
 from app.cache.quran import QuranCache
 from app.core.config import get_settings
-from app.data.surahs import SURAH_NAMES
 from app.schemas.ayah import Ayah
 
 
@@ -274,6 +273,62 @@ class NatiqProvider:
 
 
     # ==================================================
+    # Surahs
+    # ==================================================
+
+    async def list_surahs(
+        self,
+    ) -> list[dict[str, Any]]:
+
+        logger.info(
+            "Loading surahs..."
+        )
+
+        results: list[dict[str, Any]] = []
+
+        offset = 0
+        limit = 200
+
+        while True:
+
+            response = await self._get_with_retry(
+                "/surahs/",
+                params={
+                    "offset": offset,
+                    "limit": limit,
+                },
+            )
+
+            items = self._extract_list(
+                response.json()
+            )
+
+            if not items:
+
+                break
+
+            results.extend(items)
+
+            logger.info(
+                "Loaded %s surahs",
+                len(results),
+            )
+
+            if len(items) < limit:
+
+                break
+
+            offset += len(items)
+
+        logger.info(
+            "Finished loading %s surahs",
+            len(results),
+        )
+
+        return results
+
+
+    # ==================================================
     # Translations
     # ==================================================
 
@@ -418,15 +473,116 @@ class NatiqProvider:
         ayah: dict[str, Any],
     ) -> dict[str, Any]:
 
-        return next(
-            (
-                item
-                for item in self._cache.takhtits
-                if item.get("uuid")
-                == ayah.get("uuid")
-            ),
+        ayah_uuid = ayah.get("uuid")
+
+        if not ayah_uuid:
+
+            return {}
+
+        return self._cache.takhtit_map.get(
+            ayah_uuid,
             {},
         )
+
+
+    def _resolve_surah(
+        self,
+        metadata: dict[str, Any],
+    ) -> dict[str, Any]:
+
+        surah_uuid = metadata.get(
+            "surah_uuid"
+        )
+
+        if surah_uuid:
+
+            surah = self._cache.surah_uuid_map.get(
+                surah_uuid
+            )
+
+            if surah:
+
+                return surah
+
+        surah_number = metadata.get(
+            "surah"
+        )
+
+        if surah_number is None:
+
+            return {}
+
+        return self._cache.surah_map.get(
+            surah_number,
+            {},
+        )
+
+
+    @staticmethod
+    def _get_surah_name(
+        surah: dict[str, Any],
+    ) -> str:
+
+        return str(
+            surah.get("name")
+            or surah.get("title")
+            or surah.get("arabic_name")
+            or surah.get("name_ar")
+            or ""
+        )
+
+
+    @staticmethod
+    def _get_surah_period(
+        surah: dict[str, Any],
+    ) -> str:
+
+        location = str(
+            surah.get("location")
+            or surah.get("period")
+            or surah.get("revelation_place")
+            or ""
+        ).strip().lower()
+
+        if location in {
+            "makki",
+            "meccan",
+            "makkah",
+            "macca",
+        }:
+
+            return "makki"
+
+        if location in {
+            "madani",
+            "medinan",
+            "madinah",
+            "medina",
+        }:
+
+            return "madani"
+
+        return "unknown"
+
+
+    def _get_surah_icon(
+        self,
+        surah: dict[str, Any],
+    ) -> str:
+
+        period = self._get_surah_period(
+            surah
+        )
+
+        if period == "makki":
+
+            return "🕋"
+
+        if period == "madani":
+
+            return "🕌"
+
+        return ""
 
 
     def _build_ayah_from_item(
@@ -454,46 +610,47 @@ class NatiqProvider:
         )
 
 
-        translation = None
-
-
         ayah_uuid = ayah.get(
-            "uuid"
+            "uuid",
+            "",
         )
 
+        translation_item = self._cache.translation_map.get(
+            ayah_uuid,
+            {},
+        )
+        translation = translation_item.get(
+            "text"
+        )
 
-        for item in self._cache.translations:
-
-            if item.get(
-                "ayah_uuid"
-            ) == ayah_uuid:
-
-                translation = item.get(
-                    "text"
-                )
-
-                break
-
-
+        surah = self._resolve_surah(
+            metadata
+        )
 
         return Ayah(
             text=ayah.get(
                 "text",
                 "",
             ),
-
             uuid=ayah_uuid,
-
             translation=translation,
-
-            surah_name=SURAH_NAMES.get(
-                surah_number,
-                "Unknown",
+            surah_uuid=surah.get(
+                "uuid",
+                "",
             ),
-
+            surah_name=self._get_surah_name(
+                surah
+            ),
             surah_number=surah_number,
-
+            surah_period=self._get_surah_period(
+                surah
+            ),
+            surah_icon=self._get_surah_icon(
+                surah
+            ),
             ayah_number=ayah_number,
+            page=metadata.get("page"),
+            juz=metadata.get("juz"),
         )
 
 
