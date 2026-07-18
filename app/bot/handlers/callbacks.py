@@ -40,16 +40,24 @@ async def _reply_with_ayah(
         "current_ayah_uuid"
     ] = ayah.uuid
 
+    reply_markup = None
+
+    if context.application.bot_data.get(
+        "supports_inline_keyboard",
+        False,
+    ):
+        reply_markup = random_ayah_keyboard(
+            ayah.uuid,
+            language,
+        )
+
     await message.reply_text(
         text=format_ayah(
             ayah,
             language,
         ),
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=random_ayah_keyboard(
-            ayah.uuid,
-            language,
-        ),
+        reply_markup=reply_markup,
         reply_to_message_id=message.message_id,
     )
 
@@ -87,6 +95,11 @@ async def _handle_next_ayah(
         context.user_data[
             "bot_language"
         ] = language
+
+        if not container.quran_cache_ready:
+            raise RuntimeError(
+                "Quran cache unavailable"
+            )
 
         ayah: Ayah = await (
             container.provider.next_ayah(
@@ -153,6 +166,11 @@ async def random_ayah_callback(
         context.user_data[
             "bot_language"
         ] = language
+
+        if not container.quran_cache_ready:
+            raise RuntimeError(
+                "Quran cache unavailable"
+            )
 
         ayah: Ayah = await (
             container.provider.random_ayah()

@@ -37,18 +37,14 @@ async def check_bot_api(
 
                 response = await client.get(url)
 
-
                 logger.info(
                     "Bot API check attempt %s: HTTP %s",
                     attempt,
                     response.status_code,
                 )
 
-
                 if response.status_code < 500:
-
                     return
-
 
             except httpx.HTTPError as exc:
 
@@ -58,7 +54,6 @@ async def check_bot_api(
                     retries,
                     exc,
                 )
-
 
             await asyncio.sleep(
                 attempt * 2
@@ -98,9 +93,15 @@ async def main():
         )
 
 
-        await check_bot_api(
-            settings.BOT_API
-        )
+        if settings.BOT_API:
+            try:
+                await check_bot_api(
+                    settings.BOT_API
+                )
+            except Exception:
+                logger.warning(
+                    "Bot API preflight check failed; continuing to initialize polling."
+                )
 
 
         application = create_application(
@@ -133,6 +134,13 @@ async def main():
 
         await application.updater.start_polling(
             drop_pending_updates=True,
+            poll_interval=2.0,
+            timeout=30,
+            read_timeout=45,
+            write_timeout=15,
+            connect_timeout=15,
+            pool_timeout=15,
+            bootstrap_retries=-1,
         )
 
 

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+
+import httpx
 
 from app.api.provider import NatiqProvider
 from app.cache.quran import QuranCache
@@ -35,23 +36,29 @@ class QuranCacheLoader:
         self._cache = cache
 
 
-    async def load(self) -> None:
+    async def load(self) -> bool:
 
         logger.info(
             "Loading Quran cache..."
         )
 
-        await self._load_ayahs()
-
-        await self._load_takhtits()
-
-        await self._load_translations()
-
-        await self._load_surahs()
+        try:
+            await self._load_ayahs()
+            await self._load_takhtits()
+            await self._load_translations()
+            await self._load_surahs()
+        except (httpx.HTTPError, RuntimeError) as exc:
+            logger.exception(
+                "Quran cache loading failed: %s",
+                exc,
+            )
+            return False
 
         logger.info(
             "Quran cache loaded successfully."
         )
+
+        return True
 
 
     # --------------------------------------------------

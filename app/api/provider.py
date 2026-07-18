@@ -565,16 +565,6 @@ class NatiqProvider:
             direction="next",
         )
 
-    async def previous_ayah(
-        self,
-        current_uuid: str | None = None,
-    ) -> Ayah:
-
-        return await self._navigate_ayah(
-            current_uuid=current_uuid,
-            direction="previous",
-        )
-
     async def _navigate_ayah(
         self,
         current_uuid: str | None = None,

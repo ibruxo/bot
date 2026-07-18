@@ -61,6 +61,7 @@ class Container:
             cache=self._cache,
         )
 
+        self._quran_cache_ready = False
 
         logger.info(
             "Container initialized."
@@ -101,6 +102,11 @@ class Container:
         return self._loader
 
 
+    @property
+    def quran_cache_ready(self) -> bool:
+        return self._quran_cache_ready
+
+
     # --------------------------------------------------
     # Lifecycle
     # --------------------------------------------------
@@ -122,7 +128,12 @@ class Container:
 
 
         # Load Quran data
-        await self._loader.load()
+        self._quran_cache_ready = await self._loader.load()
+
+        if not self._quran_cache_ready:
+            logger.warning(
+                "Quran cache is unavailable. Bot will start with Quran features degraded."
+            )
 
         configure_rate_limiter(
             self._redis,

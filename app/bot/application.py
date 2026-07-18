@@ -3,6 +3,7 @@ import logging
 from telegram.ext import Application
 from telegram.request import HTTPXRequest
 
+from app.api.checker import APIFeatureChecker, MessengerFeature
 from app.bot.router import register_handlers
 from app.core.config import get_settings
 from app.core.container import Container
@@ -12,13 +13,16 @@ logger = logging.getLogger(__name__)
 
 def create_application(container: Container) -> Application:
     settings = get_settings()
+    feature_checker = APIFeatureChecker(settings)
 
     request = HTTPXRequest(
         connection_pool_size=20,
-        connect_timeout=30.0,
-        read_timeout=30.0,
-        write_timeout=30.0,
-        pool_timeout=30.0,
+        connect_timeout=15.0,
+        read_timeout=45.0,
+        write_timeout=15.0,
+        pool_timeout=15.0,
+        media_write_timeout=30.0,
+        http_version="1.1",
     )
 
     builder = (
@@ -39,6 +43,13 @@ def create_application(container: Container) -> Application:
     application = builder.build()
 
     application.bot_data["container"] = container
+    application.bot_data["feature_checker"] = feature_checker
+    application.bot_data["supports_inline_keyboard"] = feature_checker.supports(
+        MessengerFeature.INLINE_KEYBOARD
+    )
+    application.bot_data["supports_callback_query"] = feature_checker.supports(
+        MessengerFeature.CALLBACK_QUERY
+    )
 
     register_handlers(application)
 
