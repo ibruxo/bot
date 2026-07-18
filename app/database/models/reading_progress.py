@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import uuid
 
 from sqlalchemy import ForeignKey
@@ -46,7 +48,7 @@ class ReadingProgress(
         UUIDType(),
     )
 
-    user = relationship(
+    user: Mapped["User"] = relationship(
         "User",
         back_populates="reading_progress",
     )

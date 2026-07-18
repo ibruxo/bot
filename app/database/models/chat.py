@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from sqlalchemy import BigInteger
 from sqlalchemy import Boolean
 from sqlalchemy import String
@@ -17,13 +19,13 @@ class Chat(
     UUIDMixin,
     TimestampMixin,
 ):
+    __tablename__ = "chats"
 
     user_chats: Mapped[list["UserChat"]] = relationship(
         "UserChat",
         back_populates="chat",
         cascade="all, delete-orphan",
     )
-    __tablename__ = "chats"
 
     id: Mapped[int] = mapped_column(
         primary_key=True,

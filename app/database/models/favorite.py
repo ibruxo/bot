@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import uuid
 
 from sqlalchemy import ForeignKey
@@ -51,7 +53,7 @@ class Favorite(
         index=True,
     )
 
-    user = relationship(
+    user: Mapped["User"] = relationship(
         "User",
         back_populates="favorites",
     )

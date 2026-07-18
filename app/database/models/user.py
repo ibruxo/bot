@@ -90,20 +90,20 @@ class User(
     # Relationships
     #
 
-    favorites = relationship(
+    favorites: Mapped[list["Favorite"]] = relationship(
         "Favorite",
         back_populates="user",
         cascade="all, delete-orphan",
     )
 
-    reading_progress = relationship(
+    reading_progress: Mapped["ReadingProgress | None"] = relationship(
         "ReadingProgress",
         back_populates="user",
         uselist=False,
         cascade="all, delete-orphan",
     )
 
-    user_chats = relationship(
+    user_chats: Mapped[list["UserChat"]] = relationship(
         "UserChat",
         back_populates="user",
         cascade="all, delete-orphan",

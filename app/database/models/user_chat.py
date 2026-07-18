@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from sqlalchemy import ForeignKey
 from sqlalchemy import UniqueConstraint
 from sqlalchemy.orm import Mapped
@@ -47,12 +49,12 @@ class UserChat(
         index=True,
     )
 
-    user = relationship(
+    user: Mapped["User"] = relationship(
         "User",
         back_populates="user_chats",
     )
 
-    chat = relationship(
+    chat: Mapped["Chat"] = relationship(
         "Chat",
         back_populates="user_chats",
     )

@@ -6,7 +6,7 @@ import logging
 import httpx
 
 from app.bot.application import create_application
-from app.core.config import get_settings, validate_runtime_settings
+from app.core.config import validate_runtime_settings
 from app.core.container import Container
 from app.core.logging import configure_logging
 

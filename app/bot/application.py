@@ -3,7 +3,7 @@ import logging
 from telegram.ext import Application, ContextTypes
 from telegram.request import HTTPXRequest
 
-from app.api.checker import APIFeatureChecker, MessengerFeature
+from app.api.checker import APIFeatureChecker
 from app.bot.router import register_handlers
 from app.core.config import get_settings
 from app.core.container import Container
