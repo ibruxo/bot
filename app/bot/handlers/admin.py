@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from telegram import Update
-from telegram.ext import CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import CommandHandler, ContextTypes
 
 from app.api.checker import MessengerFeature
 from app.bot.guards.rate_limit import RateLimitRule, rate_limit
@@ -66,6 +66,50 @@ async def _reply_admin_denied(
 
 @rate_limit(
     RateLimitRule(
+        limit=1,
+        window_seconds=60,
+    )
+)
+async def reload_quran_cache(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """
+    Admin-only command to reload the in-memory Quran cache without
+    restarting the bot process.
+
+    Rate-limited more strictly than other admin actions because it
+    triggers a full re-fetch of the Quran dataset from the Natiq API.
+    """
+    if not update.message:
+        return
+
+    language = detect_language(
+        update.effective_user.language_code if update.effective_user else None
+    )
+
+    if not _is_admin(update):
+        await _reply_admin_denied(update, context)
+        return
+
+    container: Container = context.application.bot_data["container"]
+
+    await update.message.reply_text(get_message("admin_cache_reloading", language))
+
+    reloaded = await container.reload_quran_cache()
+
+    result_key = (
+        "admin_cache_reload_success" if reloaded else "admin_cache_reload_failed"
+    )
+
+    await update.message.reply_text(
+        get_message(result_key, language),
+        reply_markup=main_menu_keyboard(language),
+    )
+
+
+@rate_limit(
+    RateLimitRule(
         limit=5,
         window_seconds=15,
     )
@@ -95,25 +139,5 @@ def get_command_handler() -> CommandHandler:
     return CommandHandler("admin", admin_settings_entry)
 
 
-def get_menu_handler() -> MessageHandler:
-    return MessageHandler(
-        filters.TEXT & ~filters.COMMAND,
-        _admin_menu_button,
-    )
-
-
-async def _admin_menu_button(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-) -> None:
-    if not update.message or not update.message.text:
-        return
-
-    language = detect_language(
-        update.effective_user.language_code if update.effective_user else None
-    )
-
-    if update.message.text != get_message("main_menu_admin_button", language):
-        return
-
-    await admin_settings_entry(update, context)
+def get_reload_cache_handler() -> CommandHandler:
+    return CommandHandler("reload_cache", reload_quran_cache)

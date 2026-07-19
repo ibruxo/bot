@@ -92,6 +92,16 @@ class Container:
 
         logger.info("Container startup completed.")
 
+    async def reload_quran_cache(self) -> bool:
+        """
+        Reload the in-memory Quran cache on demand.
+
+        Used by administrative actions to recover from a degraded cache
+        without requiring a full bot restart.
+        """
+        self._quran_cache_ready = await self._loader.load()
+        return self._quran_cache_ready
+
     async def shutdown(self) -> None:
         """
         Gracefully close services.

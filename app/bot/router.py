@@ -5,14 +5,12 @@ from telegram.ext import Application
 from app.api.checker import MessengerFeature
 from app.bot.handlers.admin import (
     get_command_handler as get_admin_handler,
-    get_menu_handler as get_admin_menu_handler,
+    get_reload_cache_handler,
 )
 from app.bot.handlers.callbacks import get_callback_handlers
 from app.bot.handlers.help import get_handler as get_help_handler
-from app.bot.handlers.random import (
-    get_handler as get_random_handler,
-    get_menu_handler as get_random_menu_handler,
-)
+from app.bot.handlers.menu import get_handler as get_main_menu_handler
+from app.bot.handlers.random import get_handler as get_random_handler
 from app.bot.handlers.start import get_handler as get_start_handler
 
 
@@ -20,9 +18,9 @@ def register_handlers(application: Application) -> None:
     application.add_handler(get_start_handler())
     application.add_handler(get_help_handler())
     application.add_handler(get_admin_handler())
+    application.add_handler(get_reload_cache_handler())
     application.add_handler(get_random_handler())
-    application.add_handler(get_random_menu_handler())
-    application.add_handler(get_admin_menu_handler())
+    application.add_handler(get_main_menu_handler())
 
     feature_checker = application.bot_data["feature_checker"]
 
