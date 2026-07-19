@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from sqlalchemy import ForeignKey
 from sqlalchemy import UniqueConstraint
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
+
+if TYPE_CHECKING:
+    from app.database.models.chat import Chat
+    from app.database.models.user import User
 
 from app.database.models.base import Base
 from app.database.models.mixins import TimestampMixin

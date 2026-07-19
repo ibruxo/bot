@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from sqlalchemy import BigInteger
 from sqlalchemy import Boolean
 from sqlalchemy import String
@@ -7,6 +9,9 @@ from sqlalchemy import String
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm import mapped_column
+
+if TYPE_CHECKING:
+    from app.database.models.user_chat import UserChat
 
 from app.database.models.base import Base
 from app.database.models.mixins import (
