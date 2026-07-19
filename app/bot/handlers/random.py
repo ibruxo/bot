@@ -4,7 +4,7 @@ import logging
 
 from telegram import Update
 from telegram.constants import ParseMode
-from telegram.ext import CommandHandler, ContextTypes
+from telegram.ext import CommandHandler, ContextTypes, MessageHandler, filters
 
 from app.api.checker import MessengerFeature
 from app.bot.guards.rate_limit import RateLimitRule, rate_limit
@@ -127,3 +127,27 @@ def get_handler() -> CommandHandler:
         "random",
         random_ayah,
     )
+
+
+def get_menu_handler() -> MessageHandler:
+    return MessageHandler(
+        filters.TEXT & ~filters.COMMAND,
+        _random_menu_button,
+    )
+
+
+async def _random_menu_button(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    if not update.message or not update.message.text:
+        return
+
+    language = detect_language(
+        update.effective_user.language_code if update.effective_user else None
+    )
+
+    if update.message.text != get_message("main_menu_random_button", language):
+        return
+
+    await random_ayah(update, context)
