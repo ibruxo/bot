@@ -89,10 +89,10 @@ MESSAGES: dict[str, Mapping[SupportedLanguage, str]] = {
         "tr": "Bot Yönetici Paneli\n\nKullanıcı kimliğiniz: {user_id}\nYapılandırılmış yönetici sayısı: {configured_admin_count}\nPlatform: {platform}\nVarsayılan bot dili: {bot_language}\nKur'an önbelleği hazır: {quran_cache_ready}\nSatır içi klavye desteği: {inline_keyboard_supported}\nCallback query desteği: {callback_query_supported}\n\nKullanılabilir yönetici komutu:\n/reload_cache - Botu yeniden başlatmadan Kur'an önbelleğini yeniden yükle",
     },
     "admin_access_denied": {
-        "fa": "شما به بخش ادمین دسترسی ندارید. برای فعال‌سازی این بخش، شناسه عحدی کاربر شما باید در تنظیم `ADMIN_USER_IDS` قرار بگیرد.",
-        "en": "You do not have access to the admin area. To enable this section, your numeric user ID must be included in the `ADMIN_USER_IDS` setting.",
-        "ar": "ليس لديك صلاحية الوصول إلى قسم المشرف. لتفعيل هذا القسم، يجب إضافة معرّف المستخدم الرقمي الخاص بك إلى الإعداد `ADMIN_USER_IDS`.",
-        "tr": "Yönetici alanına erişim izniniz yok. Bu bölümü etkinleştirmek için sayısal kullanıcı kimliğiniz `ADMIN_USER_IDS` ayarına eklenmelidir.",
+        "fa": "شما به بخش ادمین دسترسی ندارید. برای فعال‌سازی این بخش، شناسه عددی کاربر شما باید در تنظیم `ADMIN_USER_IDS` قرار بگیرد یا فیلد `is_admin` حساب کاربری شما در دیتابیس فعال باشد.",
+        "en": "You do not have access to the admin area. To enable this section, your numeric user ID must be included in the `ADMIN_USER_IDS` setting, or your database user record must have `is_admin` set to true.",
+        "ar": "ليس لديك صلاحية الوصول إلى قسم المشرف. لتفعيل هذا القسم، يجب إضافة معرّف المستخدم الرقمي الخاص بك إلى الإعداد `ADMIN_USER_IDS`، أو تفعيل حقل `is_admin` في سجل المستخدم الخاص بك في قاعدة البيانات.",
+        "tr": "Yönetici alanına erişim izniniz yok. Bu bölümü etkinleştirmek için sayısal kullanıcı kimliğiniz `ADMIN_USER_IDS` ayarına eklenmeli veya veritabanındaki kullanıcı kaydınızda `is_admin` değeri true olmalıdır.",
     },
     "admin_cache_reloading": {
         "fa": "در حال بارگذاری کش قرآن... لطفاً شکیبا باشید.",

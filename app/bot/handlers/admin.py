@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Protocol
+
 from telegram import Update
 from telegram.ext import CommandHandler, ContextTypes
 
@@ -11,14 +13,48 @@ from app.i18n import detect_language, get_message
 from app.ui.keyboards import main_menu_keyboard
 
 
-def _is_admin(update: Update) -> bool:
+class SupportsAdminLookup(Protocol):
+    async def is_admin(self, telegram_id: int) -> bool: ...
+
+
+async def _resolve_is_admin(
+    telegram_id: int,
+    *,
+    configured_admin_ids: set[int],
+    user_repository: SupportsAdminLookup,
+) -> bool:
+    """
+    A user is an admin if either is true:
+
+    - their numeric ID is listed in the `ADMIN_USER_IDS` setting, or
+    - their `users.is_admin` database column is set to true.
+
+    The env-based check is tried first since it never requires a
+    database round-trip.
+    """
+    if telegram_id in configured_admin_ids:
+        return True
+
+    return await user_repository.is_admin(telegram_id)
+
+
+async def _is_admin(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> bool:
     user = update.effective_user
 
     if user is None or user.id is None:
         return False
 
     settings = get_settings()
-    return user.id in settings.admin_user_ids
+    container: Container = context.application.bot_data["container"]
+
+    return await _resolve_is_admin(
+        user.id,
+        configured_admin_ids=settings.admin_user_ids,
+        user_repository=container.user_repository,
+    )
 
 
 def _build_admin_dashboard(
@@ -88,7 +124,7 @@ async def reload_quran_cache(
         update.effective_user.language_code if update.effective_user else None
     )
 
-    if not _is_admin(update):
+    if not await _is_admin(update, context):
         await _reply_admin_denied(update, context)
         return
 
@@ -121,7 +157,7 @@ async def admin_settings_entry(
     if not update.message:
         return
 
-    if not _is_admin(update):
+    if not await _is_admin(update, context):
         await _reply_admin_denied(update, context)
         return
 
